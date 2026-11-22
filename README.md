@@ -114,6 +114,13 @@ Conditional Access requirement), the command stops and prints the `az login` com
   against a real broker. If a refresh cannot be proven while the broker is in use, the error names
   the Azure CLI setting that turns the broker off (`core.enable_broker_on_windows` or
   `core.enable_broker_on_mac`); the extension never changes it.
+* Some Azure CLI versions add extra claims to broker requests in certain environments. The broker
+  renewal then targets a different cache entry than the one the Azure CLI reads, the new token is
+  not found, and the command fails closed instead of reporting a refresh it could not prove.
+* When Microsoft Entra ID needs a user to sign in again, the Azure CLI itself may print a hint
+  first (it recommends `az logout` and `az login ... --claims-challenge`). The extension cannot
+  suppress it through public interfaces. Follow the command the extension prints after it: you do
+  not need to sign out.
 * A token without a readable issue time (an opaque, non-JWT token, which some personal Microsoft
   accounts receive for some audiences) cannot be proven, so the command fails for it.
 * Azure CLI 2.71.0 to 2.75.x print a warning about a claims challenge on every refresh. That is
