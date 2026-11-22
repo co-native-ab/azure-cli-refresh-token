@@ -12,6 +12,7 @@ SUCCESS_CASES = [
     ('ms-graph', ['--resource-type', 'ms-graph'], 'user'),
     ('other-tenant', ['--tenant', OTHER_TENANT], 'user'),
     ('service-principal', [], 'servicePrincipal'),
+    ('show-claims', ['--show-claims'], 'user'),
 ]
 
 
@@ -23,7 +24,7 @@ def test_successful_refresh_leaks_no_token(az, fake, name, arguments, account, d
         az.login_user()
     else:
         az.login_service_principal()
-    az.token(*arguments)
+    az.token(*[argument for argument in arguments if argument != '--show-claims'])
     extra = ['--debug'] if debug else []
 
     result, _ = az.refresh(*arguments, *extra)
