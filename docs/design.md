@@ -117,7 +117,7 @@ thin layer and `custom.py`; the core receives them only to hash them or decode t
 
 The integration tests need a Microsoft Entra ID that a test can control: change a user's groups
 between two requests, answer "interaction required", return the same token twice. `tests/fake_entra`
-is a small HTTPS server, started by the tests, with a certificate authority generated for each run.
+is a small HTTPS server, started by the tests, with a certificate authority created for each run.
 The Azure CLI trusts it through `REQUESTS_CA_BUNDLE` and uses it as a custom cloud, and users sign in
 with the device-code flow, which the fake approves at the first poll.
 
