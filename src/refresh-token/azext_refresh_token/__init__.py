@@ -10,4 +10,4 @@ def __getattr__(name):
     if name == 'COMMAND_LOADER_CLS':
         from azext_refresh_token.loader import RefreshTokenCommandsLoader
         return RefreshTokenCommandsLoader
-    raise AttributeError('module {!r} has no attribute {!r}'.format(__name__, name))
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')

@@ -19,7 +19,7 @@ from azext_refresh_token import selection
 EMPTY_CLAIMS = '{}'
 
 
-class CurrentToken:
+class CurrentToken:  # pylint: disable=too-few-public-methods
     """A token as ``get-access-token`` returns it. Its text is kept out of ``repr``."""
 
     __slots__ = ('token', 'tenant', 'subscription', 'expires_on')
@@ -31,7 +31,7 @@ class CurrentToken:
         self.expires_on = expires_on
 
     def __repr__(self):
-        return 'CurrentToken(tenant={!r}, subscription={!r})'.format(self.tenant, self.subscription)
+        return f'CurrentToken(tenant={self.tenant!r}, subscription={self.subscription!r})'
 
 
 def get_profile(cli_ctx):

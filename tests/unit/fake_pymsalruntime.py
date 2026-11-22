@@ -123,10 +123,3 @@ class FakeModule:
 
     def __getattr__(self, name):
         raise AssertionError('the broker adapter used pymsalruntime.{}'.format(name))
-
-
-def module(**options):
-    return FakeModule(**options)
-
-
-

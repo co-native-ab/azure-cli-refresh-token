@@ -14,7 +14,8 @@ def renewal(module, timeout=5):
 
 
 def renew(module, platform='win32', claims=CLAIMS, username='user@example.test', timeout=5):
-    renewal(module, timeout).renew(AUTHORITY, username, SCOPES, claims, 'the-old-token', platform)
+    renewal(module, timeout).renew(AUTHORITY, username, SCOPES, claims=claims,
+                                   token_to_renew='the-old-token', platform=platform)
 
 
 def test_renews_with_the_expected_parameters():

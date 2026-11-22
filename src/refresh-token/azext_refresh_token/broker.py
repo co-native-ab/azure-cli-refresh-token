@@ -29,17 +29,17 @@ class BrokerAccountError(BrokerFailure):
     """The broker knows no account, or several, with the signed-in user name."""
 
     def __init__(self, found):
-        super().__init__('the broker knows {} accounts with the signed-in user name'.format(found))
+        super().__init__(f'the broker knows {found} accounts with the signed-in user name')
         self.found = found
 
 
-class BrokerRenewal:
+class BrokerRenewal:  # pylint: disable=too-few-public-methods
     def __init__(self, module, client_id, timeout=DEFAULT_TIMEOUT_SECONDS):
         self._module = module
         self._client_id = client_id
         self._timeout = timeout
 
-    def renew(self, authority, username, scopes, claims, token_to_renew, platform):
+    def renew(self, authority, username, scopes, *, claims, token_to_renew, platform):
         """Make the broker drop ``token_to_renew`` and issue a new token for the same request."""
         account = self._find_account(username)
 
@@ -76,7 +76,7 @@ class BrokerRenewal:
         handle = start(callback)
         if not done.wait(self._timeout):
             handle.cancel_async_operation()
-            raise BrokerFailure('the broker did not answer within {} seconds'.format(self._timeout))
+            raise BrokerFailure(f'the broker did not answer within {self._timeout} seconds')
         return answers[0]
 
     def _check(self, error):
@@ -85,7 +85,6 @@ class BrokerRenewal:
         status = error.get_status()
         if status == self._module.Response_Status.Status_InteractionRequired:
             raise BrokerInteractionRequired(
-                'The broker needs you to sign in again (error code {}).'.format(
-                    error.get_error_code()))
-        raise BrokerFailure('the broker returned an error (status {}, error code {})'.format(
-            status, error.get_error_code()))
+                f'The broker needs you to sign in again (error code {error.get_error_code()}).')
+        raise BrokerFailure(f'the broker returned an error (status {status}, '
+                            f'error code {error.get_error_code()})')

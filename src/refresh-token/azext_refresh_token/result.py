@@ -19,7 +19,7 @@ def _iso_utc(epoch_seconds):
     return moment.strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
-def build(label, scopes, final_facts, tenant, subscription, start_fingerprint, expires_on,
+def build(label, scopes, final_facts, *, tenant, subscription, start_fingerprint, expires_on,
           show_claims):
     """The JSON object the command returns."""
     output = {
@@ -47,17 +47,17 @@ def unsupported_account_message(kind):
         'cloudShell': 'a Cloud Shell account',
     }
     what = names.get(kind, 'this type of account')
-    return ('The signed-in account is {}, whose tokens cannot be refreshed by this extension. '
-            'Nothing was requested from Microsoft Entra ID.'.format(what))
+    return (f'The signed-in account is {what}, whose tokens cannot be refreshed by this extension. '
+            'Nothing was requested from Microsoft Entra ID.')
 
 
 def login_command(kind, tenant, scopes, username):
     """The ``az login`` command that signs the account in again."""
     if kind == KIND_SERVICE_PRINCIPAL:
-        return 'az login --service-principal --username "{}" --tenant "{}"'.format(username, tenant)
-    parts = ['az login --tenant "{}"'.format(tenant)]
+        return f'az login --service-principal --username "{username}" --tenant "{tenant}"'
+    parts = [f'az login --tenant "{tenant}"']
     if scopes:
-        parts.append('--scope ' + ' '.join('"{}"'.format(scope) for scope in scopes))
+        parts.append('--scope ' + ' '.join(f'"{scope}"' for scope in scopes))
     return ' '.join(parts)
 
 
@@ -70,14 +70,15 @@ def sign_in_required_recommendation(kind, tenant, scopes, username):
 def not_renewed_same_message(fingerprint):
     """The Azure CLI still returns the token it had."""
     return ('The token was not renewed: the Azure CLI still returns the same token '
-            '(fingerprint {}).'.format(fingerprint))
+            f'(fingerprint {fingerprint}).')
 
 
 def not_renewed_stale_message(issued_at):
     """The new token was issued before the command started."""
-    return ('The token was not renewed: the token the Azure CLI returns now was issued at {}, '
-            'before the command started (allowing {} minutes). If the clock of this machine is '
-            'wrong, correct it and try again.'.format(_iso_utc(issued_at), ALLOWANCE_SECONDS // 60))
+    return ('The token was not renewed: the token the Azure CLI returns now was issued at '
+            f'{_iso_utc(issued_at)}, before the command started (allowing '
+            f'{ALLOWANCE_SECONDS // 60} minutes). If the clock of this machine is wrong, correct '
+            'it and try again.')
 
 
 def cannot_prove_message():
@@ -89,13 +90,13 @@ def cannot_prove_message():
 def broker_sentence(setting):
     """How to avoid the broker, naming the setting without changing it."""
     return ('The Azure CLI uses a broker for this account. To avoid the broker, run '
-            '`az config set {}=false` and then `az login`. This command does not change the '
-            'setting.'.format(setting))
+            f'`az config set {setting}=false` and then `az login`. This command does not change '
+            'the setting.')
 
 
 def broker_unavailable_message(setting, detail):
     """The broker library is missing or the broker call failed or timed out."""
-    return ('The broker could not renew the token: {}. {}'.format(detail, broker_sentence(setting)))
+    return f'The broker could not renew the token: {detail}. {broker_sentence(setting)}'
 
 
 def broker_account_message(setting, found):
@@ -104,4 +105,4 @@ def broker_account_message(setting, found):
         problem = 'the broker knows no account with the signed-in user name'
     else:
         problem = 'the broker knows several accounts with the signed-in user name'
-    return 'The broker could not renew the token: {}. {}'.format(problem, broker_sentence(setting))
+    return f'The broker could not renew the token: {problem}. {broker_sentence(setting)}'
