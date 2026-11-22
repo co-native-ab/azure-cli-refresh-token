@@ -104,7 +104,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: ${{ matrix.az == 'min' && '3.12' || '3.13' }}
+          python-version: ${{ matrix.az == 'min' && '3.12' || '3.14' }}
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wheel
@@ -130,6 +130,10 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/az"
           "$AZ_PYTHON" -m pip install azure-cli
+      - name: Show the Azure CLI version
+        run: |
+          export AZURE_CONFIG_DIR="$(mktemp -d)" AZURE_EXTENSION_DIR="$(mktemp -d)"
+          "$AZ_PYTHON" -m azure.cli version
       - name: Install the test tools
         run: |
           python -m venv "$RUNNER_TEMP/test"
