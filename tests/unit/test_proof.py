@@ -98,9 +98,10 @@ def test_label_is_issued_when_both_tokens_have_the_same_issue_time():
 
 
 def test_label_is_issued_up_to_the_run_time_plus_the_margin():
-    elapsed = 2.5  # the limit is 7.5 seconds: issue times are whole seconds
-    assert proof.label(issued_at(START), issued_at(START + 7), elapsed) == 'issued'
-    assert proof.label(issued_at(START), issued_at(START + 8), elapsed) == 'refreshed'
+    elapsed = 2.5  # the limit is a fractional number of seconds: issue times are whole seconds
+    limit = int(elapsed + proof.LABEL_MARGIN_SECONDS)
+    assert proof.label(issued_at(START), issued_at(START + limit), elapsed) == 'issued'
+    assert proof.label(issued_at(START), issued_at(START + limit + 1), elapsed) == 'refreshed'
 
 
 def test_label_boundary_with_a_whole_second_run_time():
@@ -126,12 +127,12 @@ def test_label_is_refreshed_when_an_issue_time_is_unreadable(start_token, final_
 
 
 @pytest.mark.parametrize('start_iat, final_iat', [
-    (1795362787, 1795362902),
-    (1795362902, 1795363058),
+    (START - 409, START - 294),
+    (START - 453, START - 297),
 ])
 def test_label_is_refreshed_for_a_token_cached_a_few_minutes_before_the_run(start_iat, final_iat):
-    # The identity provider dates a token about five minutes before it issues it, so a token
-    # cached two or three minutes before the run still looks older than the new one.
+    # Tokens cached two or three minutes before the run: the identity provider dates a token about
+    # five minutes before it issues it, so they look six to seven minutes older than the run start.
     assert proof.label(issued_at(start_iat), issued_at(final_iat), 4) == 'refreshed'
 
 

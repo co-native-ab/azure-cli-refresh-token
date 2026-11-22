@@ -79,7 +79,7 @@ jobs:
           sys.exit(1 if failed else 0)
           PY
           az version
-          if ! az extension list --query "[?name=='refresh-token'].name" -o tsv | grep -qx refresh-token; then
+          if ! az extension list --query "[?name=='refresh-token'].name" -o tsv | grep -x refresh-token >/dev/null; then
             echo "::error::the refresh-token extension is not installed"
             exit 1
           fi
