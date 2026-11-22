@@ -1,12 +1,11 @@
 """Refreshing the token of a signed-in user account."""
 
 import re
-import sys
 
 import pytest
 
 from azext_refresh_token import proof
-from conftest import payload_of
+from conftest import TYPICAL_RUN_SECONDS, payload_of
 from fake_entra import HOME_TENANT
 
 pytestmark = pytest.mark.integration
@@ -14,9 +13,6 @@ pytestmark = pytest.mark.integration
 ARM_SCOPE = 'https://management.example.test//.default'
 GRAPH_SCOPE = 'https://graph.example.test//.default'
 DEVICE_CODE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code'
-# Linux runs the strict bound; the other platforms start the Azure CLI more slowly, so they get a
-# generous one that still catches a command that waits for input.
-TYPICAL_RUN_SECONDS = 10 if sys.platform.startswith('linux') else 40
 
 
 def sign_in_with_old_cached_token(az, fake):

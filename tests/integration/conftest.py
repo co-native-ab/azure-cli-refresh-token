@@ -28,6 +28,9 @@ from fake_entra import FakeEntra, HOME_TENANT
 REPOSITORY = pathlib.Path(__file__).resolve().parents[2]
 CLOUD_NAME = 'fakeentra'
 CALL_TIMEOUT_SECONDS = 60
+# Linux runs the strict bound; the other platforms start the Azure CLI more slowly, so they get a
+# generous one that still catches a command that waits for input.
+TYPICAL_RUN_SECONDS = 10 if sys.platform.startswith('linux') else 40
 REAL_HOME = pathlib.Path.home()
 REAL_CONFIG_DIR = pathlib.Path(os.environ.get('AZURE_CONFIG_DIR') or REAL_HOME / '.azure')
 # Only these files are compared, by name, size and modification time. They are never opened.
