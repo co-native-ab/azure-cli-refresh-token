@@ -117,3 +117,21 @@ def test_token_cached_seconds_before_is_still_renewed(az, fake):
     assert output['status'] in ('issued', 'refreshed')
     assert output['fingerprint'] != cached
     assert az.fingerprint() == output['fingerprint']
+
+
+def test_token_cached_half_a_minute_before_is_refreshed(az, fake):
+    # Signing in caches the Azure Resource Manager token, so it is issued while the clock is behind.
+    fake.state.clock_offset_seconds = -30
+    try:
+        az.login_user()
+        cached = az.fingerprint()
+    finally:
+        fake.state.clock_offset_seconds = 0
+
+    result, output = az.refresh()
+
+    assert result.returncode == 0, result.stderr
+    assert output['status'] == 'refreshed'
+    assert output['previousFingerprint'] == cached
+    assert output['fingerprint'] != cached
+    assert az.fingerprint() == output['fingerprint']

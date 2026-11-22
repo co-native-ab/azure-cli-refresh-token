@@ -15,9 +15,14 @@ import json
 from collections import namedtuple
 
 # Microsoft Entra ID sets a token's issue time a few minutes before it issues the token, and clocks
-# differ, so "issued after the command started" allows this many seconds. A token that is older
-# still cannot pass, because it must also differ from the token the command started with.
+# differ, so "issued after the command started" allows this many seconds for the proof. A token that
+# is older still cannot pass, because it must also differ from the token the command started with.
 ALLOWANCE_SECONDS = 600
+
+# Issue times are whole seconds, and the two tokens a run compares may come from different servers
+# of the identity provider, whose clocks can differ by a second or so. The label allows this many
+# seconds on top of the run time.
+LABEL_MARGIN_SECONDS = 5
 
 FINGERPRINT_LENGTH = 12
 
@@ -99,12 +104,19 @@ def prove(start_facts, final_facts, start, allowance=ALLOWANCE_SECONDS):
     return VERDICT_PROVEN
 
 
-def label(start_facts, start, allowance=ALLOWANCE_SECONDS):
-    """``issued`` when the starting token was itself issued by this run, else ``refreshed``.
+def label(start_facts, final_facts, elapsed, margin=LABEL_MARGIN_SECONDS):
+    """``issued`` when the starting token was itself obtained during this run, else ``refreshed``.
 
-    The label never decides whether a new token is requested.
+    Both issue times come from the identity provider, which dates them the same way, so its early
+    dating cancels out and the local clock plays no part. A starting token obtained during the run
+    was issued at most ``elapsed`` seconds before the new one, so the label is ``issued`` when the
+    two issue times differ by no more than ``elapsed`` plus ``margin`` seconds. If either issue time
+    is unreadable the label is ``refreshed``. The label never decides whether a new token is
+    requested.
     """
-    if start_facts.iat is not None and start_facts.iat >= start - allowance:
+    if start_facts.iat is None or final_facts.iat is None:
+        return LABEL_REFRESHED
+    if abs(final_facts.iat - start_facts.iat) <= elapsed + margin:
         return LABEL_ISSUED
     return LABEL_REFRESHED
 

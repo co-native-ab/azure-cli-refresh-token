@@ -27,9 +27,10 @@ Request = namedtuple('Request', [
 def refresh_token(cmd, resource_type=None, resource=None, scopes=None, tenant=None,  # pylint: disable=too-many-positional-arguments
                   subscription=None, show_claims=False):
     start = time.time()
+    started = time.monotonic()
     request = _resolve_request(cmd, resource_type, resource, scopes, tenant, subscription)
     try:
-        return _refresh(cmd, request, start, show_claims)
+        return _refresh(cmd, request, start, started, show_claims)
     except AuthenticationError as error:
         raise AuthenticationError(
             error.error_msg, recommendation=_recommendations(request, error)) from error
@@ -78,7 +79,7 @@ def _current_token(request):
         request.profile, request.resource, request.scopes, request.subscription, request.tenant)
 
 
-def _refresh(cmd, request, start, show_claims):
+def _refresh(cmd, request, start, started, show_claims):
     use_broker = selection.broker_in_use(
         sys.platform, platform.machine(), request.kind,
         cmd.cli_ctx.config.getboolean('core', 'enable_broker_on_windows', fallback=True),
@@ -104,8 +105,10 @@ def _refresh(cmd, request, start, show_claims):
     except refresh.RefreshError as error:
         raise CLIError(str(error)) from error
 
+    elapsed = time.monotonic() - started
+    label = proof.label(start_facts, final_facts, elapsed)
     return result.build(
-        proof.label(start_facts, start), request.scopes_used, final_facts, tenant=final.tenant,
+        label, request.scopes_used, final_facts, tenant=final.tenant,
         subscription=final.subscription, start_fingerprint=start_facts.fingerprint,
         expires_on=final.expires_on, show_claims=show_claims)
 
