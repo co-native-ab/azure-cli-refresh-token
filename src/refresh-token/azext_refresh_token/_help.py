@@ -25,9 +25,10 @@ long-summary: >
     cannot be proven, the command fails with a non-zero exit code.
 
 
-    `status` is `issued` when the token the command started from was itself issued within that
-    window, typically because the Azure CLI had none cached for the request and issued one for
-    this run, and `refreshed` otherwise. In both cases a new token is requested and proven.
+    `status` is `issued` when the token the command started from was itself obtained during this
+    run: its issue time is within the command's run time, plus a few seconds, of the new token's.
+    That is typically the case when the Azure CLI had none cached for the request and got one for
+    this run. Otherwise it is `refreshed`. In both cases a new token is requested and proven.
 
 
     The command never prints an access token or a refresh token; it shows a short fingerprint (the

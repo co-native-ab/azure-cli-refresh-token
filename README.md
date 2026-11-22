@@ -66,7 +66,7 @@ The command prints one JSON object. `--output` and `--query` work as for any Azu
 | `tenant` | The tenant the token is for |
 | `subscription` | The subscription used. Present only when `--tenant` is not given, as for `get-access-token` |
 | `previousFingerprint`, `fingerprint` | The first 12 hexadecimal characters of the SHA-256 hash of the token the command started from and of the new token |
-| `issuedAt` | When the new token was issued, ISO 8601 in UTC |
+| `issuedAt` | When the new token was issued, from its `iat` claim, ISO 8601 in UTC. Microsoft Entra ID sets this time about 5 minutes before it actually issues the token, so it is usually about 5 minutes before the command ran |
 | `expiresOn` | When the new token expires, ISO 8601 in UTC (unlike the local-time `expiresOn` of `get-access-token`) |
 | `expires_on` | When the new token expires, as a POSIX timestamp, the same value `get-access-token` reports |
 | `claims` | With `--show-claims` only: the decoded payload of the new token |
@@ -75,10 +75,10 @@ The command never prints, logs or stores an access token or a refresh token, not
 `--debug`; a token is identified only by its fingerprint. `--show-claims` prints the payload of the
 new token (never its header or signature), which contains personal data, so it is off by default.
 
-`status` is `refreshed` when the Azure CLI already had a token before the command started. It is
-`issued` when the token the command started from was itself issued just then, typically because
-nothing was cached for that audience and the Azure CLI had to get one first. A new token is requested
-and checked in both cases.
+`status` is `issued` when the token the command started from was itself obtained during this run:
+its issue time is within the command's run time, plus a few seconds, of the new token's. That is
+typically the case when nothing was cached for that audience and the Azure CLI had to get one first.
+Otherwise it is `refreshed`. A new token is requested and checked in both cases.
 
 ### How a refresh is proven
 
