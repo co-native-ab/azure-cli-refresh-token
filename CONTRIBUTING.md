@@ -108,6 +108,28 @@ follows semantic versioning (before 1.0.0, an incompatible change raises the min
 public contract is the extension name, the command and its parameters and defaults, the fields of
 the JSON output, the exit codes and the minimum Azure CLI version.
 
-One check, `ci-ok`, gates a merge. It passes only when style, lint, the wheel build and the unit and
+One check, `ci-ok`, gates a merge. It passes only when style, lint, the wheel build, the release dry
+run (which prepares the release files from the built wheel, as a release would) and the unit and
 integration tests have passed on Linux, macOS and Windows with the minimum and the latest Azure CLI.
 The same suite runs every Monday against the newest Azure CLI release.
+
+## Releases
+
+For maintainers. A release pull request sets `VERSION` in `src/refresh-token/setup.py` and adds the
+matching heading, with its entries, to `src/refresh-token/HISTORY.rst`. After it is merged, a
+maintainer pushes a signed, annotated tag on `main`:
+
+```bash
+git tag -s -m "azure-cli-refresh-token vX.Y.Z" vX.Y.Z
+git push origin vX.Y.Z
+```
+
+The release workflow checks the tag (annotated, signature verified by GitHub, on `main`, matching
+the version and a `HISTORY.rst` heading), builds the wheel, waits for approval in the `release`
+environment, attests the wheel and publishes the GitHub Release with the wheel, its SHA-256 and the
+notes. Just before publishing it checks the tag once more against the commit that was built, so a
+tag that was deleted and pushed again while the release waited for approval stops the release. A
+pushed tag is never moved: a broken release is fixed by the next version.
+
+The workflow can also be run by hand. That is a dry run: it builds the wheel and prepares the
+release files, and publishes nothing.

@@ -1,0 +1,132 @@
+name: Release
+
+# A pushed v* tag builds the wheel, waits for approval in the release environment, attests the wheel
+# and publishes a GitHub Release. Run by hand, the workflow is a dry run that publishes nothing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-build:
+    name: Verify the tag and build the wheel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      commit: ${{ steps.verify.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Verify the tag
+        id: verify
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The commit that was checked out and is about to be built must be the one the tag names.
+          commit="$(git rev-parse 'HEAD^{commit}')"
+          python tools/release.py verify-tag --repo "$GITHUB_REPOSITORY" --tag "$GITHUB_REF_NAME" --sha "$commit"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/build"
+          "$RUNNER_TEMP/build/bin/python" -m pip install -r requirements/build.txt
+          "$RUNNER_TEMP/build/bin/python" -m build --wheel --no-isolation --outdir dist src/refresh-token
+      - name: Check the wheel holds only the extension package
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          (wheel,) = glob.glob('dist/*.whl')
+          names = zipfile.ZipFile(wheel).namelist()
+          print('\n'.join(names))
+          allowed = [n for n in names if n.startswith('azext_refresh_token/')
+                     or '.dist-info/' in n]
+          unexpected = sorted(set(names) - set(allowed))
+          assert not unexpected, 'unexpected files in the wheel: {}'.format(unexpected)
+          assert 'azext_refresh_token/azext_metadata.json' in names
+          assert not any('tests' in n.split('/') or 'fake_entra' in n for n in names)
+          PY
+      - name: Prepare the release files
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            python tools/release.py prepare --dist dist --out release --tag "$GITHUB_REF_NAME"
+          else
+            python tools/release.py prepare --dist dist --out release
+          fi
+          (cd release && sha256sum -c ./*.sha256)
+          cat release/notes.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+
+  attest:
+    name: Attest the wheel
+    if: github.event_name == 'push'
+    needs: verify-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*.whl
+
+  release:
+    name: Publish the GitHub Release
+    if: github.event_name == 'push'
+    needs: [verify-build, attest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      # The tag can be deleted and pushed again while the release waits for approval. This job only
+      # checks the tag once more against the commit that was built; it never builds from it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: release
+      - name: Check the tag again and create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERIFIED_COMMIT: ${{ needs.verify-build.outputs.commit }}
+        run: |
+          set -euo pipefail
+          python tools/release.py verify-tag --repo "$GITHUB_REPOSITORY" --tag "$GITHUB_REF_NAME" --sha "$VERIFIED_COMMIT"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" \
+            --notes-file release/notes.md release/*.whl release/*.whl.sha256

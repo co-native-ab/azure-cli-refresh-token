@@ -11,20 +11,31 @@ extension asks Microsoft Entra ID for new tokens for the same signed-in account,
 so the next `az` command, and tools that get their tokens from the Azure CLI,
 see the change right away.
 
-> **Status:** early development. Nothing is released yet, and the interface may
-> change without notice.
+> **Status:** first release, 0.1.0. Before 1.0.0 an incompatible change can still come in a minor
+> release; [HISTORY.rst](src/refresh-token/HISTORY.rst) says what changed.
 
 ## Install
 
-There is no published release yet. Build the wheel (see [CONTRIBUTING.md](CONTRIBUTING.md)) and
-install it:
+```bash
+az extension add --source https://github.com/co-native-ab/azure-cli-refresh-token/releases/download/v0.1.0/refresh_token-0.1.0-py3-none-any.whl
+```
+
+The Azure CLI asks you to confirm an extension from a source it cannot verify. Answer `y`, or add
+`--yes`.
+
+To verify the wheel first, download it from the release, check its SHA-256 hash and its build
+provenance, and install the file you checked:
 
 ```bash
-az extension add --source path/to/refresh_token-0.1.0-py3-none-any.whl
+gh release download v0.1.0 --repo co-native-ab/azure-cli-refresh-token
+sha256sum -c refresh_token-0.1.0-py3-none-any.whl.sha256    # macOS: shasum -a 256 -c ...
+gh attestation verify refresh_token-0.1.0-py3-none-any.whl --repo co-native-ab/azure-cli-refresh-token
+az extension add --source ./refresh_token-0.1.0-py3-none-any.whl
 ```
 
 The extension needs Azure CLI 2.71.0 or later. It adds one command, `az account refresh-token`, and
-depends on nothing but what the Azure CLI already ships.
+depends on nothing but what the Azure CLI already ships. To build it from source instead, see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Usage
 
@@ -103,17 +114,33 @@ The command never opens a browser, never starts a device-code flow and never wai
 Microsoft Entra ID needs you to sign in again (an expired session, a multi-factor step-up or a
 Conditional Access requirement), the command stops and prints the `az login` command to run.
 
+## Windows and macOS broker: not verified yet
+
+**The Windows and macOS broker path is not verified yet.** When the Azure CLI signs in
+through the operating system's broker (the default on Windows, and on macOS when you turn it
+on), the extension renews the token in the broker and then has the Azure CLI fetch it. That
+sequence is tested against a stand-in for the broker, but not yet on real Windows or macOS
+systems. It fails closed: if the new token cannot be proven, the command stops with an error
+and never reports an old token as new.
+
+Help us verify it: Windows in https://github.com/co-native-ab/azure-cli-refresh-token/issues/3,
+macOS in https://github.com/co-native-ab/azure-cli-refresh-token/issues/4.
+Please comment with your operating system and its version, the output of `az version`,
+whether the broker is on, the command's exit code and status, any error text, and these
+lines from `az account refresh-token --debug` (they also appear with `--verbose`):
+`New token <fingerprint>: same`, `stale`, `unreadable` or `proven`, and
+`Renewing the token in the broker for scopes [...]`. Fingerprints are safe to share. Never
+paste a token, and do not paste the full debug output.
+
+If a refresh cannot be proven while the broker is in use, the error names the Azure CLI setting that
+turns the broker off (`core.enable_broker_on_windows` or `core.enable_broker_on_mac`). The extension
+never changes it.
+
 ## Limitations
 
 * Managed identity and Cloud Shell accounts are rejected before anything is requested. The Azure CLI
   gives no way to force a new token for them.
-* **The Windows and macOS broker path is not verified yet.** When the Azure CLI signs in through the
-  operating system broker (Windows by default, macOS on Apple silicon when enabled), the extension
-  asks the broker for a new token and then makes the Azure CLI fetch it. This sequence is
-  implemented and unit tested against a stand-in for the broker library, but it has not been run
-  against a real broker. If a refresh cannot be proven while the broker is in use, the error names
-  the Azure CLI setting that turns the broker off (`core.enable_broker_on_windows` or
-  `core.enable_broker_on_mac`); the extension never changes it.
+* The Windows and macOS broker path is not verified yet; see [the section above](#windows-and-macos-broker-not-verified-yet).
 * Some Azure CLI versions add extra claims to broker requests in certain environments. The broker
   renewal then targets a different cache entry than the one the Azure CLI reads, the new token is
   not found, and the command fails closed instead of reporting a refresh it could not prove.
