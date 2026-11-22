@@ -1,0 +1,2 @@
+# The Azure CLI extension style and linter tooling. Install it in its own virtual environment.
+azdev==0.2.15

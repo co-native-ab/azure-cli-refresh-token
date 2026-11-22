@@ -1,0 +1,4 @@
+# Test dependencies: pytest runs the suites; cryptography creates the throwaway certificate
+# authority the fake identity provider serves HTTPS with.
+pytest==9.2.0
+cryptography==50.0.2

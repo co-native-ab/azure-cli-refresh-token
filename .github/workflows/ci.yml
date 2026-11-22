@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # Mondays 04:23 UTC: runs the whole matrix, so every new Azure CLI release is tested within a week.
+    - cron: '23 4 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The requirement files Microsoft publishes for Azure CLI 2.71.0, the minimum supported release,
+  # fetched by commit so they cannot change underneath the tests.
+  MIN_AZ_REQUIREMENTS: https://raw.githubusercontent.com/Azure/azure-cli/fce4292629f0e02bafda839e4beec7e4c16060f0/src/azure-cli/requirements.py3
+
+jobs:
+  lint:
+    name: Style and lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install azdev in its own environment
+        run: |
+          python -m venv "$RUNNER_TEMP/lint"
+          "$RUNNER_TEMP/lint/bin/python" -m pip install -r requirements/lint.txt
+      - name: azdev setup, style and linter
+        env:
+          VIRTUAL_ENV: ${{ runner.temp }}/lint
+        run: |
+          export PATH="$RUNNER_TEMP/lint/bin:$PATH"
+          export AZURE_CONFIG_DIR="$(mktemp -d)"
+          azdev setup --repo "$GITHUB_WORKSPACE" --ext refresh-token
+          azdev style refresh-token
+          azdev linter refresh-token
+
+  build:
+    name: Build the wheel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Build
+        run: |
+          python -m venv "$RUNNER_TEMP/build"
+          "$RUNNER_TEMP/build/bin/python" -m pip install -r requirements/build.txt
+          "$RUNNER_TEMP/build/bin/python" -m build --wheel --no-isolation --outdir dist src/refresh-token
+      - name: Check the wheel holds only the extension package
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          (wheel,) = glob.glob('dist/*.whl')
+          names = zipfile.ZipFile(wheel).namelist()
+          print('\n'.join(names))
+          allowed = [n for n in names if n.startswith('azext_refresh_token/')
+                     or '.dist-info/' in n]
+          unexpected = sorted(set(names) - set(allowed))
+          assert not unexpected, 'unexpected files in the wheel: {}'.format(unexpected)
+          assert 'azext_refresh_token/azext_metadata.json' in names
+          assert not any('tests' in n.split('/') or 'fake_entra' in n for n in names)
+          PY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wheel
+          path: dist/*.whl
+          if-no-files-found: error
+
+  test:
+    name: Tests (${{ matrix.os }}, Azure CLI ${{ matrix.az }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+        az: [min, latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.az == 'min' && '3.12' || '3.14' }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: wheel
+          path: wheel
+      - name: Locate the virtual environments
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then scripts=Scripts; exe=python.exe; else scripts=bin; exe=python; fi
+          echo "AZ_PYTHON=$RUNNER_TEMP/az/$scripts/$exe" >> "$GITHUB_ENV"
+          echo "TEST_PYTHON=$RUNNER_TEMP/test/$scripts/$exe" >> "$GITHUB_ENV"
+          echo "EXTENSION_WHEEL=$(python -c "import glob, os; print(os.path.abspath(glob.glob('wheel/*.whl')[0]))")" >> "$GITHUB_ENV"
+      - name: Install the minimum Azure CLI
+        if: matrix.az == 'min'
+        run: |
+          case "$RUNNER_OS" in
+            Linux) platform=Linux ;;
+            macOS) platform=Darwin ;;
+            Windows) platform=windows ;;
+          esac
+          python -m venv "$RUNNER_TEMP/az"
+          "$AZ_PYTHON" -m pip install -r "$MIN_AZ_REQUIREMENTS.$platform.txt"
+      - name: Install the latest Azure CLI
+        if: matrix.az == 'latest'
+        run: |
+          python -m venv "$RUNNER_TEMP/az"
+          "$AZ_PYTHON" -m pip install azure-cli
+      - name: Show the Azure CLI version
+        run: |
+          export AZURE_CONFIG_DIR="$(mktemp -d)" AZURE_EXTENSION_DIR="$(mktemp -d)"
+          "$AZ_PYTHON" -m azure.cli version
+      - name: Install the test tools
+        run: |
+          python -m venv "$RUNNER_TEMP/test"
+          "$TEST_PYTHON" -m pip install -r requirements/test.txt
+      - name: Unit tests
+        run: '"$TEST_PYTHON" -m pytest tests/unit -v'
+      - name: Integration tests
+        run: '"$TEST_PYTHON" -m pytest tests/integration -v -s'
+
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [lint, build, test]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Every job must have succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "A job did not succeed: $result"
+              exit 1
+            fi
+          done
