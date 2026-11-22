@@ -35,15 +35,60 @@ jobs:
           python-version: '3.12'
       - name: Install azdev in its own environment
         run: |
+          set -euo pipefail
           python -m venv "$RUNNER_TEMP/lint"
           "$RUNNER_TEMP/lint/bin/python" -m pip install -r requirements/lint.txt
-      - name: azdev setup, style and linter
+      - name: Install the pinned Azure CLI with azdev
         env:
           VIRTUAL_ENV: ${{ runner.temp }}/lint
         run: |
+          set -euo pipefail
           export PATH="$RUNNER_TEMP/lint/bin:$PATH"
-          export AZURE_CONFIG_DIR="$(mktemp -d)"
-          azdev setup --repo "$GITHUB_WORKSPACE" --ext refresh-token
+          export PIP_CONSTRAINT="$GITHUB_WORKSPACE/requirements/lint-azure-cli.txt"
+          config="$(mktemp -d)"
+          echo "AZURE_CONFIG_DIR=$config" >> "$GITHUB_ENV"
+          export AZURE_CONFIG_DIR="$config"
+          # azdev logs an install failure and still exits 0, so read its output.
+          azdev setup --repo "$GITHUB_WORKSPACE" --ext refresh-token 2>&1 | tee "$RUNNER_TEMP/azdev-setup.log"
+          if ! grep -q 'Finished dev setup!' "$RUNNER_TEMP/azdev-setup.log" \
+              || grep -q 'ERROR:' "$RUNNER_TEMP/azdev-setup.log"; then
+            echo "::error::azdev setup did not finish; see the log above"
+            exit 1
+          fi
+      - name: Check the installed Azure CLI
+        env:
+          VIRTUAL_ENV: ${{ runner.temp }}/lint
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/lint/bin:$PATH"
+          python - "$GITHUB_WORKSPACE/requirements/lint-azure-cli.txt" <<'PY'
+          import importlib.metadata
+          import sys
+
+          failed = False
+          for line in open(sys.argv[1]):
+              line = line.strip()
+              if not line or line.startswith('#'):
+                  continue
+              name, _, expected = line.partition('==')
+              found = importlib.metadata.version(name)
+              print('{}: expected {}, found {}'.format(name, expected, found))
+              if found != expected:
+                  print('::error::{} {} is installed, expected {}'.format(name, found, expected))
+                  failed = True
+          sys.exit(1 if failed else 0)
+          PY
+          az version
+          if ! az extension list --query "[?name=='refresh-token'].name" -o tsv | grep -qx refresh-token; then
+            echo "::error::the refresh-token extension is not installed"
+            exit 1
+          fi
+      - name: Style and linter
+        env:
+          VIRTUAL_ENV: ${{ runner.temp }}/lint
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/lint/bin:$PATH"
           azdev style refresh-token
           azdev linter refresh-token
 

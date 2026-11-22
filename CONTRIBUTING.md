@@ -67,10 +67,13 @@ python -m venv ../.venv-lint
 ../.venv-lint/bin/python -m pip install -r requirements/lint.txt
 . ../.venv-lint/bin/activate
 export AZURE_CONFIG_DIR=$(mktemp -d)
-azdev setup --repo "$PWD" --ext refresh-token
+PIP_CONSTRAINT="$PWD/requirements/lint-azure-cli.txt" azdev setup --repo "$PWD" --ext refresh-token
 azdev style refresh-token
 azdev linter refresh-token
 ```
+
+The lint runs against a fixed Azure CLI release, because `azdev setup` would otherwise install the
+newest one; the constraints file sets it, and dependency updates bump it.
 
 ## Rules for changes
 

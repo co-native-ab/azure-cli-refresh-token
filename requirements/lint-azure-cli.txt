@@ -1,0 +1,4 @@
+# Constraints for the Azure CLI that `azdev setup` installs for style and lint checks. They are applied
+# through PIP_CONSTRAINT, so lint runs against a fixed release instead of the newest one.
+azure-cli==2.93.0
+azure-cli-core==2.93.0

@@ -4,6 +4,11 @@ updates:
     directory: /requirements
     schedule:
       interval: weekly
+    groups:
+      azure-cli:
+        patterns:
+          - azure-cli
+          - azure-cli-core
     commit-message:
       prefix: chore(deps)
   - package-ecosystem: github-actions
