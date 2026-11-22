@@ -63,7 +63,8 @@ def login_command(kind, tenant, scopes, username):
 
 def sign_in_required_recommendation(kind, tenant, scopes, username):
     """What to do when Microsoft Entra ID needs the user to sign in again."""
-    return ('Sign in again with the command below; additional arguments may be added as needed:\n'
+    return ('Run the command below to sign in again; you do not need to sign out first. '
+            'Additional arguments may be added as needed:\n'
             + login_command(kind, tenant, scopes, username))
 
 
@@ -85,6 +86,13 @@ def cannot_prove_message():
     """The token has no readable issue time, so a refresh could not be proven."""
     return ('A refresh cannot be proven for this token because it has no readable issue time '
             '(it is not a JSON Web Token). Nothing was requested from Microsoft Entra ID.')
+
+
+def new_token_unreadable_message(fingerprint):
+    """A new token was obtained but it has no readable issue time."""
+    return ('A new token was obtained (fingerprint '
+            f'{fingerprint}), but its issue time cannot be read (it is not a JSON Web Token), so '
+            'the refresh cannot be proven.')
 
 
 def broker_sentence(setting):

@@ -87,14 +87,19 @@ When the proof fails and the broker may be in use, the extension therefore:
 
 1. renews the token in the broker through the public `pymsalruntime` API: it finds the broker's
    account for the signed-in user name and silently acquires a token with
-   `set_access_token_to_renew` set to the starting token, for the same authority, scopes and claims;
+   `set_access_token_to_renew` set to the token the forced request returned (the starting token
+   when the Azure CLI handed it back unchanged, otherwise the older token it returned instead), for
+   the authority of that token's tenant, the same scopes and the same claims. A token without a
+   readable tenant id is not renewed and the command fails;
 2. repeats the credential call once, which makes MSAL fetch the renewed token from the broker and
    store it where plain `az` finds it;
 3. proves the result again. If it still fails, the error names the Azure CLI setting that turns the
    broker off and leaves it unchanged.
 
-Only silent calls are used; the extension never shows a broker window. This sequence is implemented
-and unit tested against a stand-in for `pymsalruntime`, but has not been verified against a real
+Only silent calls are used; the extension never shows a broker window. The sequence lives in
+`refresh.py`, which takes the Azure CLI and broker calls as functions, so every branch (which token
+is renewed, at most one renewal, no renewal without a broker, a missing `pymsalruntime`, a broker
+that needs a new sign-in) is unit tested without either. It has not been verified against a real
 broker yet; see the limitations in the README.
 
 ## Public interfaces only
@@ -110,7 +115,8 @@ place the Azure CLI publishes it, and Microsoft's own extensions import it from 
 
 `selection.py`, `proof.py` and `result.py` take plain values and return plain values; they use only
 the standard library. `azure_cli.py` and `broker.py` are the thin layer around the Azure CLI and the
-broker library, and `custom.py` wires them together. Tokens exist only as local variables in the
+broker library, `refresh.py` runs the refresh sequence on top of functions it is given, and
+`custom.py` wires the real ones in. Tokens exist only as local variables in the
 thin layer and `custom.py`; the core receives them only to hash them or decode their payload.
 
 ## The fake identity provider

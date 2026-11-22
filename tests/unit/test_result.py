@@ -90,6 +90,16 @@ def test_not_renewed_messages():
     assert 'not renewed' in stale and 'clock' in stale and '10 minutes' in stale
 
 
+def test_new_token_unreadable_message_differs_from_nothing_requested():
+    message = result.new_token_unreadable_message('0123456789ab')
+    assert 'issue time cannot be read' in message
+    assert 'Nothing was requested' not in message
+
+
+def test_sign_in_recommendation_says_signing_out_is_not_needed():
+    assert 'do not need to sign out' in result.sign_in_required_recommendation('user', 't', ['s'], 'u')
+
+
 def test_cannot_prove_message():
     message = result.cannot_prove_message()
     assert 'cannot be proven' in message and 'Nothing was requested' in message

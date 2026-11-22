@@ -5,6 +5,7 @@ import pathlib
 
 import pytest
 
+from conftest import TYPICAL_RUN_SECONDS
 from fake_entra import HOME_TENANT
 
 pytestmark = pytest.mark.integration
@@ -39,7 +40,7 @@ def test_interaction_required_names_az_login(az, fake):
 
     result = refresh_fails(az)
 
-    assert result.seconds < 30
+    assert result.seconds < TYPICAL_RUN_SECONDS
     assert 'az login --tenant "{}"'.format(HOME_TENANT) in result.stderr
     assert ARM_SCOPE in result.stderr
     for text in ('device code', 'browser'):
@@ -54,6 +55,8 @@ def test_service_principal_bad_secret_names_az_login(az, fake):
     result = refresh_fails(az)
 
     assert 'az login --service-principal --username "{}"'.format(fake.state.app_id) in result.stderr
+    # The Azure CLI's own explanation of this error is kept next to ours.
+    assert '--certificate' in result.stderr
 
 
 def test_same_token_is_not_reported_as_refreshed(az, fake):
@@ -88,6 +91,17 @@ def test_opaque_token_cannot_be_proven(az, fake):
 
     assert 'cannot be proven' in result.stderr
     assert len(fake.state.requests) == requests_before
+
+
+def test_new_token_without_issue_time_cannot_be_proven(az, fake):
+    az.login_user()
+    az.token()
+    fake.state.mode = 'opaque_token'
+
+    result = refresh_fails(az)
+
+    assert 'issue time cannot be read' in result.stderr
+    assert 'Nothing was requested' not in result.stderr
 
 
 def test_managed_identity_account_is_rejected_up_front(az, fake):

@@ -14,7 +14,7 @@ from azure.cli.core.util import in_cloud_console
 from knack.log import get_logger
 from knack.util import CLIError
 
-from azext_refresh_token import azure_cli, broker, proof, result, selection
+from azext_refresh_token import azure_cli, broker, proof, refresh, result, selection
 
 logger = get_logger(__name__)
 
@@ -32,7 +32,7 @@ def refresh_token(cmd, resource_type=None, resource=None, scopes=None, tenant=No
         return _refresh(cmd, request, start, show_claims)
     except AuthenticationError as error:
         raise AuthenticationError(
-            error.error_msg, recommendation=_sign_in_recommendation(request)) from error
+            error.error_msg, recommendation=_recommendations(request, error)) from error
     except broker.BrokerInteractionRequired as error:
         raise AuthenticationError(
             str(error), recommendation=_sign_in_recommendation(request)) from error
@@ -57,6 +57,16 @@ def _resolve_request(cmd, resource_type, resource, scopes, tenant, subscription)
                    account['user']['name'])
 
 
+def _recommendations(request, error):
+    """The Azure CLI's own recommendation for a service principal (for example an expired secret)
+    stays; ours is added. For a user the Azure CLI's advice is to sign out first, which is not
+    needed, so only ours is shown."""
+    kept = []
+    if request.kind == selection.KIND_SERVICE_PRINCIPAL:
+        kept = list(getattr(error, 'recommendations', None) or [])
+    return kept + [_sign_in_recommendation(request)]
+
+
 def _sign_in_recommendation(request):
     return result.sign_in_required_recommendation(
         request.kind, request.tenant or request.account['tenantId'], request.scopes_used,
@@ -69,33 +79,30 @@ def _current_token(request):
 
 
 def _refresh(cmd, request, start, show_claims):
-    starting = _current_token(request)
-    starting_token = starting.token
-    start_facts = proof.inspect(starting_token)
-    if start_facts.iat is None:
-        raise CLIError(result.cannot_prove_message())
-    logger.info('Starting token %s for scopes %s', start_facts.fingerprint, request.scopes_used)
-
     use_broker = selection.broker_in_use(
         sys.platform, platform.machine(), request.kind,
         cmd.cli_ctx.config.getboolean('core', 'enable_broker_on_windows', fallback=True),
         cmd.cli_ctx.config.getboolean('core', 'enable_broker_on_mac', fallback=False))
-    broker_tried = False
+    setting = selection.broker_setting(sys.platform)
+    claims = proof.broker_claims(bool(os.environ.get('AZURE_IDENTITY_DISABLE_CP1')))
 
-    while True:
-        azure_cli.force_new_token(request.profile, request.account, request.scopes_used,
-                                  request.subscription, request.tenant)
-        final = _current_token(request)
-        final_facts = proof.inspect(final.token)
-        verdict = proof.prove(start_facts, final_facts, start)
-        logger.info('New token %s: %s', final_facts.fingerprint, verdict)
-        step = proof.next_step(verdict, use_broker, broker_tried)
-        if step == proof.STEP_SUCCEED:
-            break
-        if step == proof.STEP_FAIL:
-            raise CLIError(_not_renewed_message(verdict, final_facts, use_broker))
-        _renew_in_broker(cmd, request, start_facts, starting_token)
-        broker_tried = True
+    def renew(token, tenant_id):
+        logger.info('Renewing the token in the broker for scopes %s', request.scopes_used)
+        refresh.renew_in_broker(
+            token, tenant_id, load_module=_load_broker_library, client_id=AZURE_CLI_CLIENT_ID,
+            active_directory=cmd.cli_ctx.cloud.endpoints.active_directory,
+            username=request.username, scopes=request.scopes_used, claims=claims,
+            platform=sys.platform, setting=setting)
+
+    try:
+        start_facts, final, final_facts = refresh.run(
+            start=start, current=lambda: _current_token(request),
+            force=lambda: azure_cli.force_new_token(
+                request.profile, request.account, request.scopes_used, request.subscription,
+                request.tenant),
+            renew=renew, use_broker=use_broker, setting=setting, log=logger.info)
+    except refresh.RefreshError as error:
+        raise CLIError(str(error)) from error
 
     return result.build(
         proof.label(start_facts, start), request.scopes_used, final_facts, tenant=final.tenant,
@@ -103,43 +110,6 @@ def _refresh(cmd, request, start, show_claims):
         expires_on=final.expires_on, show_claims=show_claims)
 
 
-def _renew_in_broker(cmd, request, start_facts, token_to_renew):
-    """Make the broker drop the token it holds for these scopes and issue a new one.
-
-    The Azure CLI's own cache sits in front of the broker, so the caller asks the credential for a
-    token again afterwards, which stores what the broker now returns.
-    """
-    setting = selection.broker_setting(sys.platform)
-    try:
-        import pymsalruntime  # pylint: disable=import-outside-toplevel
-    except ImportError as error:
-        # MSAL cannot use the broker without this library either, so the credential path was not
-        # served by the broker; this only explains why the refresh could not be proven.
-        raise CLIError(result.broker_unavailable_message(
-            setting, f'the broker library is not available ({error})')) from error
-    active_directory = cmd.cli_ctx.cloud.endpoints.active_directory.rstrip('/')
-    authority = f'{active_directory}/{start_facts.tid}'
-    claims = proof.broker_claims(bool(os.environ.get('AZURE_IDENTITY_DISABLE_CP1')))
-    logger.info('Renewing the token in the broker for scopes %s', request.scopes_used)
-    renewal = broker.BrokerRenewal(pymsalruntime, AZURE_CLI_CLIENT_ID)
-    try:
-        renewal.renew(authority, request.username, request.scopes_used, claims=claims,
-                      token_to_renew=token_to_renew, platform=sys.platform)
-    except broker.BrokerAccountError as error:
-        raise CLIError(result.broker_account_message(setting, error.found)) from error
-    except broker.BrokerInteractionRequired:
-        raise
-    except broker.BrokerFailure as error:
-        raise CLIError(result.broker_unavailable_message(setting, str(error))) from error
-
-
-def _not_renewed_message(verdict, final_facts, use_broker):
-    if verdict == proof.VERDICT_SAME:
-        message = result.not_renewed_same_message(final_facts.fingerprint)
-    elif verdict == proof.VERDICT_STALE:
-        message = result.not_renewed_stale_message(final_facts.iat)
-    else:
-        return result.cannot_prove_message()
-    if use_broker:
-        message += ' ' + result.broker_sentence(selection.broker_setting(sys.platform))
-    return message
+def _load_broker_library():
+    import pymsalruntime  # pylint: disable=import-outside-toplevel,import-error
+    return pymsalruntime
