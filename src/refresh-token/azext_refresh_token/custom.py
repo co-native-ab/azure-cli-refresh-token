@@ -58,13 +58,13 @@ def _resolve_request(cmd, resource_type, resource, scopes, tenant, subscription)
 
 
 def _recommendations(request, error):
-    """The Azure CLI's own recommendation for a service principal (for example an expired secret)
-    stays; ours is added. For a user the Azure CLI's advice is to sign out first, which is not
-    needed, so only ours is shown."""
-    kept = []
-    if request.kind == selection.KIND_SERVICE_PRINCIPAL:
-        kept = list(getattr(error, 'recommendations', None) or [])
-    return kept + [_sign_in_recommendation(request)]
+    """For a service principal the Azure CLI's own advice stays only for an invalid secret or
+    certificate (it names what to check); any other error gets only ours. For a user the Azure
+    CLI's advice is to sign out first, which is not needed, so only ours is shown."""
+    own = list(getattr(error, 'recommendations', None) or [])
+    codes = (getattr(error, 'msal_error', None) or {}).get('error_codes')
+    return selection.choose_recommendations(
+        request.kind, codes, own, _sign_in_recommendation(request))
 
 
 def _sign_in_recommendation(request):

@@ -162,6 +162,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.user_tokens(grant, tenant, scope, mode=state.mode)
 
         if grant == 'client_credentials':
+            if state.mode == 'expired_secret':
+                return self.error(
+                    401, 'invalid_client',
+                    'AADSTS7000222: The provided client secret keys are expired.', [7000222])
             if form.get('client_id') != state.app_id or \
                     form.get('client_secret') != state.app_secret or state.mode == 'bad_secret':
                 return self.error(

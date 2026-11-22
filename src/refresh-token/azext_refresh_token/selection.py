@@ -106,3 +106,15 @@ def broker_in_use(platform, machine, kind, enable_on_windows, enable_on_mac):
 def broker_setting(platform):
     """The Azure CLI setting that turns the broker off on this platform."""
     return BROKER_SETTING_MAC if platform == 'darwin' else BROKER_SETTING_WINDOWS
+
+
+INVALID_CREDENTIAL_ERROR_CODE = 7000215
+
+
+def choose_recommendations(kind, error_codes, own_recommendations, ours):
+    """The recommendations to show after a failed sign-in. The Azure CLI's own hint is kept only
+    for a service principal whose secret or certificate was rejected."""
+    kept = []
+    if kind == KIND_SERVICE_PRINCIPAL and INVALID_CREDENTIAL_ERROR_CODE in (error_codes or []):
+        kept = list(own_recommendations)
+    return kept + [ours]

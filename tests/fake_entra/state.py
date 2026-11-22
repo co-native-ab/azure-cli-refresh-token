@@ -21,7 +21,7 @@ TENANTS = {
 }
 
 MODES = ('normal', 'interaction_required', 'same_token', 'stale_token', 'opaque_token',
-         'bad_secret')
+         'bad_secret', 'expired_secret')
 
 
 class State:

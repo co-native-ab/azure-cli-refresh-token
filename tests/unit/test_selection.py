@@ -134,3 +134,20 @@ def test_broker_in_use(platform, machine, kind, windows, mac, expected):
 def test_broker_setting_names():
     assert selection.broker_setting('win32') == 'core.enable_broker_on_windows'
     assert selection.broker_setting('darwin') == 'core.enable_broker_on_mac'
+
+
+OWN = ['Check the secret or certificate.']
+OURS = 'Run az login.'
+
+
+@pytest.mark.parametrize('kind, codes, expected', [
+    (selection.KIND_SERVICE_PRINCIPAL, [7000215], OWN + [OURS]),
+    (selection.KIND_SERVICE_PRINCIPAL, [70000, 7000215], OWN + [OURS]),
+    (selection.KIND_SERVICE_PRINCIPAL, [7000222], [OURS]),
+    (selection.KIND_SERVICE_PRINCIPAL, [], [OURS]),
+    (selection.KIND_SERVICE_PRINCIPAL, None, [OURS]),
+    (selection.KIND_USER, [7000215], [OURS]),
+    (selection.KIND_USER, [50076], [OURS]),
+])
+def test_choose_recommendations(kind, codes, expected):
+    assert selection.choose_recommendations(kind, codes, OWN, OURS) == expected

@@ -59,6 +59,18 @@ def test_service_principal_bad_secret_names_az_login(az, fake):
     assert '--certificate' in result.stderr
 
 
+def test_service_principal_other_error_has_only_our_recommendation(az, fake):
+    az.login_service_principal()
+    az.token()
+    fake.state.mode = 'expired_secret'
+
+    result = refresh_fails(az)
+
+    assert 'az login --service-principal --username "{}"'.format(fake.state.app_id) in result.stderr
+    assert 'az logout' not in result.stderr
+    assert '--certificate' not in result.stderr
+
+
 def test_same_token_is_not_reported_as_refreshed(az, fake):
     az.login_user()
     az.token()
