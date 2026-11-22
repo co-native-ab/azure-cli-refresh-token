@@ -11,7 +11,8 @@ Given the arguments of `az account get-access-token`, the command:
 2. looks up the signed-in account and refuses account types it cannot refresh (managed identity,
    Cloud Shell) before it asks Microsoft Entra ID for anything;
 3. reads the token `get-access-token` returns now, the *starting token* (if nothing is cached, the
-   Azure CLI gets one from Microsoft Entra ID, which is why the command can report `issued`);
+   Azure CLI gets one from Microsoft Entra ID during this run, which is why the command can report
+   `issued`);
 4. asks the Azure CLI's own credential for a new token with an empty claims challenge, which makes
    MSAL skip the access token it has cached, get a new one and store it where later
    `get-access-token` calls find it;
@@ -67,13 +68,19 @@ The decision lives in `proof.py` and is pure: times are passed in.
 
 The allowance exists because Microsoft Entra ID sets a token's issue time a few minutes before it
 issues the token, and because the clock of this machine and the service's differ. A larger
-allowance cannot let an old token through, since the token must also differ from the starting token;
-it only makes `issued` more likely for a token cached shortly before the command ran. A token whose
-issue time cannot be read cannot be proven, so the command fails rather than trust it.
+allowance cannot let an old token through, since the token must also differ from the starting token.
+A token whose issue time cannot be read cannot be proven, so the command fails rather than trust it.
 
-The `issued` or `refreshed` label is decided from the starting token's issue time only, after the
-proof. It never influences whether a new token is requested, and the cache is never read to decide
-it: a new token is always forced.
+The `issued` or `refreshed` label is decided after the proof, in `proof.label`, from the `iat` of
+the starting token and of the new token and from the command's measured run time (a monotonic clock,
+read in `custom.py`). It is `issued` when the two issue times differ by no more than the run time
+plus 5 seconds, which holds whenever the starting token was obtained during this run (and for a
+token cached only seconds before it). Both times come from the identity provider and carry the same
+early dating, so that dating cancels out and the clock of this machine plays no part. The 5 seconds
+cover the whole-second resolution of `iat` and small differences between the servers that issued the
+two tokens. If either issue time cannot be read the label is `refreshed`. The label never influences
+whether a new token is requested or proven, and the cache is never read to decide it: a new token is
+always forced.
 
 ## The broker sequence
 

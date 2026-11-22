@@ -89,10 +89,55 @@ def test_unreadable_start_or_final_token_cannot_be_proven():
     assert proof.prove(readable, unreadable, START) == 'unreadable'
 
 
-def test_label_edges():
-    assert proof.label(facts(make_token(iat=START - 600)), START) == 'issued'
-    assert proof.label(facts(make_token(iat=START - 601)), START) == 'refreshed'
-    assert proof.label(facts(make_token(iat=START + 5)), START) == 'issued'
+def issued_at(iat):
+    return facts(make_token(iat=iat, jti=str(iat)))
+
+
+def test_label_is_issued_when_both_tokens_have_the_same_issue_time():
+    assert proof.label(issued_at(START), issued_at(START), 0) == 'issued'
+
+
+def test_label_is_issued_up_to_the_run_time_plus_the_margin():
+    elapsed = 2.5  # the limit is a fractional number of seconds: issue times are whole seconds
+    limit = int(elapsed + proof.LABEL_MARGIN_SECONDS)
+    assert proof.label(issued_at(START), issued_at(START + limit), elapsed) == 'issued'
+    assert proof.label(issued_at(START), issued_at(START + limit + 1), elapsed) == 'refreshed'
+
+
+def test_label_boundary_with_a_whole_second_run_time():
+    limit = 4 + proof.LABEL_MARGIN_SECONDS
+    assert proof.label(issued_at(START), issued_at(START + limit), 4) == 'issued'
+    assert proof.label(issued_at(START), issued_at(START + limit + 1), 4) == 'refreshed'
+
+
+def test_label_ignores_the_sign_of_the_difference():
+    elapsed = 4
+    limit = elapsed + proof.LABEL_MARGIN_SECONDS
+    assert proof.label(issued_at(START), issued_at(START - limit), elapsed) == 'issued'
+    assert proof.label(issued_at(START), issued_at(START - limit - 1), elapsed) == 'refreshed'
+
+
+@pytest.mark.parametrize('start_token, final_token', [
+    ('opaque', make_token(iat=START)),
+    (make_token(iat=START), 'opaque'),
+    ('opaque', 'opaque-too'),
+], ids=['unreadable-start', 'unreadable-final', 'both-unreadable'])
+def test_label_is_refreshed_when_an_issue_time_is_unreadable(start_token, final_token):
+    assert proof.label(facts(start_token), facts(final_token), 0) == 'refreshed'
+
+
+@pytest.mark.parametrize('start_iat, final_iat', [
+    (START - 409, START - 294),
+    (START - 453, START - 297),
+])
+def test_label_is_refreshed_for_a_token_cached_a_few_minutes_before_the_run(start_iat, final_iat):
+    # Tokens cached two or three minutes before the run: the identity provider dates a token about
+    # five minutes before it issues it, so they look six to seven minutes older than the run start.
+    assert proof.label(issued_at(start_iat), issued_at(final_iat), 4) == 'refreshed'
+
+
+def test_label_margin_is_five_seconds():
+    assert proof.LABEL_MARGIN_SECONDS == 5
 
 
 def test_allowance_is_ten_minutes():

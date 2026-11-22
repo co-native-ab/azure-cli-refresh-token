@@ -3,6 +3,10 @@
 Release History
 ===============
 
+Unreleased
+++++++++++
+* Fix ``status``: it is ``issued`` only when the token the command started from was obtained during the same run, judged from the issue times of the old and new token. A token cached a few minutes earlier was reported as ``issued`` instead of ``refreshed``.
+
 0.1.0
 ++++++
 * Add ``az account refresh-token``, which gets a new access token for the signed-in account without signing in again. It takes the selection arguments of ``az account get-access-token``.

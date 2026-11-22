@@ -24,5 +24,7 @@ def load_arguments(self, _):
                    completer=get_subscription_id_list, help='Name or ID of subscription.')
         c.argument('show_claims', options_list=['--show-claims'], action='store_true',
                    help='Add the decoded payload (claims) of the new token to the output. '
-                        'The payload holds personal data, so it is shown only when asked for.')
+                        'The payload holds personal data, so it is shown only when asked for. '
+                        'Microsoft Entra ID sets the issue time (iat, also shown as issuedAt) '
+                        'about 5 minutes before it actually issues the token.')
         c.ignore('_subscription')
