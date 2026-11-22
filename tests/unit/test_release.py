@@ -387,3 +387,8 @@ def test_errors_become_github_annotations_on_actions(tmp_path, capsys, monkeypat
     args = ['prepare', '--dist', str(tmp_path / 'dist'), '--out', str(tmp_path / 'out')]
     assert release.main(args) == 1
     assert '::error::' in capsys.readouterr().out
+
+
+def test_readme_carries_the_broker_notice():
+    readme = ' '.join((ROOT / 'README.md').read_text(encoding='utf-8').split())
+    assert ' '.join(release.BROKER_NOTICE.split()) in readme
