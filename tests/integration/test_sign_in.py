@@ -3,7 +3,8 @@
 import pytest
 
 from azext_refresh_token import proof
-from conftest import HOME_TENANT, assert_no_token_leak
+from conftest import assert_no_token_leak
+from fake_entra import HOME_TENANT
 from fake_entra import TENANTS
 
 pytestmark = pytest.mark.integration

@@ -216,6 +216,14 @@ class Az:
         """The token ``az account get-access-token`` returns, as a dictionary."""
         return self.json('account', 'get-access-token', *args)
 
+    def refresh(self, *args):
+        """Run ``az account refresh-token`` and return the result and its parsed output (or None)."""
+        result = self.run('account', 'refresh-token', *args, '-o', 'json')
+        parsed = None
+        if result.returncode == 0 and result.stdout.strip():
+            parsed = json.loads(result.stdout)
+        return result, parsed
+
     def fingerprint(self, *args):
         return proof.fingerprint(self.token(*args)['accessToken'])
 

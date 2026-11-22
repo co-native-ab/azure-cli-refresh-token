@@ -229,7 +229,8 @@ class Handler(BaseHTTPRequestHandler):
             'access_token': access,
             'refresh_token': refresh,
             'id_token': identity,
-            'client_info': tokens.client_info(state.user_oid, tenant),
+            # As in the real service, the home tenant identifies the account whatever tenant the token is for.
+            'client_info': tokens.client_info(state.user_oid, state_module.HOME_TENANT),
         })
 
     def application_token(self, grant, tenant, scope, mode):
