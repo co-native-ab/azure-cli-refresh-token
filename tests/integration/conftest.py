@@ -81,8 +81,7 @@ def _inside(path, parent):
 
 
 def _scrubbed_environment():
-    drop_exact = {'ACC_CLOUD', 'MSI_ENDPOINT', 'IDENTITY_ENDPOINT', 'IDENTITY_HEADER',
-                  'COPILOT_AGENT_SESSION_ID'}
+    drop_exact = {'ACC_CLOUD', 'MSI_ENDPOINT', 'IDENTITY_ENDPOINT', 'IDENTITY_HEADER'}
     environment = {}
     for key, value in os.environ.items():
         upper = key.upper()
