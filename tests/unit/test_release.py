@@ -118,7 +118,7 @@ def test_release_notes_order_and_code_spans():
     notes = release.release_notes('* A ``literal`` here.')
     assert notes == (
         '* A `literal` here.\n\n'
-        '## Windows and macOS broker: not verified yet\n\n'
+        '## macOS broker: not verified yet\n\n'
         + release.unwrap(release.BROKER_NOTICE) + '\n'
     )
 
@@ -179,8 +179,9 @@ def test_release_notes_double_backticks_become_code_spans():
 
 def test_notice_points_at_the_verification_issues():
     base = 'https://github.com/co-native-ab/azure-cli-refresh-token/issues/'
-    assert 'Windows in ' + base + '3' in release.BROKER_NOTICE
-    assert 'macOS in ' + base + '4' in release.BROKER_NOTICE
+    notice = release.unwrap(release.BROKER_NOTICE)
+    assert base + '3#issuecomment-' in notice
+    assert 'Help us verify it on macOS: ' + base + '4' in notice
 
 
 # expected_wheel / checksum_line
@@ -341,7 +342,7 @@ def test_prepare_writes_the_three_outputs(tmp_path, capsys):
     assert name == wheel.name
     assert digest == hashlib.sha256(wheel.read_bytes()).hexdigest()
     notes = (out / 'notes.md').read_text(encoding='utf-8')
-    assert 'Windows and macOS broker: not verified yet' in notes
+    assert 'macOS broker: not verified yet' in notes
     assert release.unwrap(release.BROKER_NOTICE) in notes
     assert wheel.name in capsys.readouterr().out
 
