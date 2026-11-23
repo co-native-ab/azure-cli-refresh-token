@@ -29,26 +29,26 @@ SETUP_PY = ROOT / 'src' / 'refresh-token' / 'setup.py'
 HISTORY = ROOT / 'src' / 'refresh-token' / 'HISTORY.rst'
 
 ISSUES = 'https://github.com/co-native-ab/azure-cli-refresh-token/issues/'
+WINDOWS_REPORT = ISSUES + '3#issuecomment-7101985280'
 
-NOTICE_HEADING = '## Windows and macOS broker: not verified yet'
+NOTICE_HEADING = '## macOS broker: not verified yet'
 
 # The README carries the same text; a unit test keeps the two equal.
 BROKER_NOTICE = (
-    '**The Windows and macOS broker path is not verified yet.** When the Azure CLI signs in\n'
-    "through the operating system's broker (the default on Windows, and on macOS when you turn it\n"
-    'on), the extension renews the token in the broker and then has the Azure CLI fetch it. That\n'
-    'sequence is tested against a stand-in for the broker, but not yet on real Windows or macOS\n'
-    'systems. It fails closed: if the new token cannot be proven, the command stops with an error\n'
-    'and never reports an old token as new.\n'
+    '**The macOS broker path is not verified yet.** When the Azure CLI signs in through the macOS\n'
+    'broker (turned on with `core.enable_broker_on_mac`), the extension renews the token in the broker\n'
+    'and then has the Azure CLI fetch it. The same sequence is verified on Windows with the Web Account\n'
+    'Manager broker, which the Azure CLI uses there by default (Windows 11, Azure CLI 2.88.0:\n'
+    + WINDOWS_REPORT + '). On macOS it is tested only against a stand-in for the\n'
+    'broker. It fails closed: if the new token cannot be proven, the command stops with an error and\n'
+    'never reports an old token as new.\n'
     '\n'
-    'Help us verify it: Windows in ' + ISSUES + '3,\n'
-    'macOS in ' + ISSUES + '4.\n'
-    'Please comment with your operating system and its version, the output of `az version`,\n'
-    "whether the broker is on, the command's exit code and status, any error text, and these\n"
-    'lines from `az account refresh-token --debug` (they also appear with `--verbose`):\n'
-    '`New token <fingerprint>: same`, `stale`, `unreadable` or `proven`, and\n'
-    '`Renewing the token in the broker for scopes [...]`. Fingerprints are safe to share. Never\n'
-    'paste a token, and do not paste the full debug output.'
+    'Help us verify it on macOS: ' + ISSUES + '4.\n'
+    "Please comment with your macOS version, the output of `az version`, the command's exit code and\n"
+    'status, any error text, and the lines of `az account refresh-token --debug` that contain\n'
+    '`azext_refresh_token` or `Broker enabled`. Fingerprints are safe to share. Never paste a token,\n'
+    "and do not paste the full debug output: the Azure CLI's own broker lines include personal\n"
+    'details.'
 )
 
 
